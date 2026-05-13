@@ -1,0 +1,19 @@
+# Core dependencies
+numpy>=1.24
+pandas>=2.0
+tqdm>=4.65
+requests>=2.28
+openpyxl>=3.1        # Excel read/write (calibration statistics)
+pyarrow>=12.0        # Parquet read/write (result export)
+python-dotenv>=1.0    # load .env into os.environ
+pyyaml>=6.0          # Config file parsing (embedding_code)
+
+# Optional: GPU acceleration for similarity computation
+# Install the version matching your CUDA toolkit, e.g.:
+# cupy-cuda12x>=12.0
+
+# Optional: sentence-transformers or transformers for running your own
+# embedding model (required only for embedding_code/ pipeline)
+# torch>=2.0
+# transformers>=4.40
+# sentence-transformers>=2.7

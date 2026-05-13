@@ -1,0 +1,66 @@
+# ============================================================================
+# Configuration for embedding_code scripts
+# ============================================================================
+# Command-line arguments take precedence over values defined here.
+#
+# Before running vectorization scripts, set the EMBEDDING_MODEL_PATH
+# environment variable, or pass --model_path on the command line:
+#
+#   export EMBEDDING_MODEL_PATH=/your/path/to/Qwen3-Embedding-8B
+#   python embed_chain_definitions.py
+# ============================================================================
+
+# ============================================================================
+# llm_define_chains.py
+# ============================================================================
+llm_define_chains:
+  # Path to industry chain graph Excel file (see sample_data/ for format)
+  input_file: 'sample_data/sample_industry_chain.xlsx'
+
+  output_file: null  # auto-generated from industry name if null
+
+  # LLM API endpoint — set via environment variable LLM_API_URL, or override here
+  api_url: 'http://localhost:8000/v1'
+  model_name: 'your-llm-model'
+
+  temperature: 0
+  max_tokens: 10240
+
+  max_retries: 3
+  retry_delay: 10
+
+  generate_main_chain: true
+
+
+# ============================================================================
+# parse_chain_definitions.py
+# ============================================================================
+parse_chain_definitions:
+  industry_name: '示例产业链'
+
+  input_dir: 'embedding_code/chain_definitions_llm_output'
+  output_dir: 'embedding_code/chain_definitions_formatted'
+
+
+# ============================================================================
+# embed_chain_definitions.py
+# ============================================================================
+embed_chain_definitions:
+  # Input: structured JSON list from parse_chain_definitions.py
+  input_file: 'embedding_code/chain_definitions_formatted/chain_definitions_示例产业链_list.json'
+
+  # Embedding model path — override via EMBEDDING_MODEL_PATH env var or --model_path
+  model_path: null  # falls back to EMBEDDING_MODEL_PATH env var
+
+  output_dir: 'embedding_code/chain_definitions_embedded'
+
+  l0_output: 'l0_embedding.npz'
+  chain_output: 'chain_embeddings.npz'
+  classification_output: 'chain_type_classification.csv'
+
+  # Prefix template injected before each chain definition when embedding
+  definition_prefix: '哪些文本描述满足产业链环节"{chain_name}"的定义：'
+
+  batch_size: 256
+  cuda_device: 0
+  cache_clear_interval: 100

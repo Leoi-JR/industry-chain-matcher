@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Industry Chain Matcher — 产业链挂链引擎</title>
+  <meta name="description" content="基于矩阵运算的源文本自动挂链系统，将任意文本批量映射到产业链图谱节点，支持百万级文档。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Variables ── */
+    :root {
+      --bg:           #0F172A;
+      --bg-card:      #1E293B;
+      --bg-muted:     #162032;
+      --border:       #334155;
+      --border-light: #475569;
+      --text:         #F1F5F9;
+      --text-muted:   #94A3B8;
+      --text-dim:     #64748B;
+      --accent:       #38BDF8;
+      --accent-green: #34D399;
+      --accent-amber: #FBBF24;
+      --accent-rose:  #F87171;
+      --accent-purple:#A78BFA;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+      --radius: 8px;
+      --radius-lg: 14px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.45);
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: var(--mono); font-size: .875em; }
+    pre {
+      font-family: var(--mono);
+      background: #0d1626;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .9rem 1.1rem;
+      overflow-x: auto;
+      font-size: .82rem;
+      line-height: 1.7;
+      color: var(--text-muted);
+    }
+
+    /* ── Layout helpers ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+    section { padding: 5rem 0; }
+    section + section { border-top: 1px solid var(--border); }
+
+    /* ── Typography ── */
+    h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      margin-bottom: 2rem;
+      color: var(--text);
+    }
+    h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: .75rem; }
+    .section-label {
+      font-family: var(--mono);
+      font-size: .7rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: .6rem;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(15,23,42,.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+    .nav-logo {
+      font-family: var(--mono);
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+      flex: 1;
+    }
+    .nav-links a {
+      font-size: .82rem;
+      color: var(--text-muted);
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-gh {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .8rem;
+      font-family: var(--mono);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .3rem .75rem;
+      transition: border-color .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .nav-gh:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* ── HERO ── */
+    #hero { padding: 6rem 0 5rem; }
+    .hero-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,.3);
+      border-radius: 999px;
+      padding: .25rem .9rem;
+      margin-bottom: 1.5rem;
+    }
+    .hero-title {
+      font-size: clamp(2.4rem, 6vw, 3.6rem);
+      font-weight: 700;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .hero-title .accent { color: var(--accent); }
+    .hero-subtitle {
+      font-family: var(--mono);
+      font-size: .9rem;
+      color: var(--text-dim);
+      margin-bottom: 1.25rem;
+    }
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin-bottom: 2rem;
+      line-height: 1.75;
+    }
+    .hero-actions { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 3rem; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: var(--accent); color: #0f172a;
+      font-weight: 600; font-size: .875rem;
+      padding: .6rem 1.25rem; border-radius: var(--radius);
+      transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .85; text-decoration: none; }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: .4rem;
+      border: 1px solid var(--border); color: var(--text-muted);
+      font-size: .875rem;
+      padding: .6rem 1.25rem; border-radius: var(--radius);
+      transition: border-color .15s, color .15s;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+    /* badges */
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 2.5rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: .35rem;
+      font-family: var(--mono); font-size: .72rem;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 999px; padding: .2rem .7rem;
+      color: var(--text-muted);
+    }
+    .badge.blue   { border-color: rgba(56,189,248,.3);  color: #38BDF8; }
+    .badge.green  { border-color: rgba(52,211,153,.3);  color: #34D399; }
+    .badge.amber  { border-color: rgba(251,191,36,.3);  color: #FBBF24; }
+    .badge.purple { border-color: rgba(167,139,250,.3); color: #A78BFA; }
+
+    /* feature cards grid */
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1rem;
+    }
+    .feat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.25rem 1.4rem;
+    }
+    .feat-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: .85rem;
+    }
+    .feat-icon.blue   { background: rgba(56,189,248,.1); }
+    .feat-icon.green  { background: rgba(52,211,153,.1); }
+    .feat-icon.amber  { background: rgba(251,191,36,.1); }
+    .feat-icon.purple { background: rgba(167,139,250,.1); }
+    .feat-card h4 { font-size: .9rem; font-weight: 600; margin-bottom: .4rem; }
+    .feat-card p  { font-size: .8rem; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── HOW IT WORKS ── */
+    .pipeline-svg-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      overflow-x: auto;
+      margin-bottom: 2rem;
+    }
+
+    /* ── ALGORITHM ── */
+    .algo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 640px) { .algo-grid { grid-template-columns: 1fr; } }
+    .algo-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1.4rem;
+    }
+    .algo-card h4 { font-size: .9rem; font-weight: 600; margin-bottom: .5rem; }
+    .algo-card p  { font-size: .8rem; color: var(--text-muted); line-height: 1.65; }
+    .pill {
+      display: inline-block;
+      font-family: var(--mono); font-size: .68rem;
+      padding: .1rem .55rem; border-radius: 999px;
+      margin-right: .3rem; margin-bottom: .3rem;
+    }
+    .pill.blue   { background: rgba(56,189,248,.12);  color: #38BDF8; }
+    .pill.green  { background: rgba(52,211,153,.12);  color: #34D399; }
+    .pill.amber  { background: rgba(251,191,36,.12);  color: #FBBF24; }
+    .pill.purple { background: rgba(167,139,250,.12); color: #A78BFA; }
+    .pill.rose   { background: rgba(248,113,113,.12); color: #F87171; }
+
+    /* matrix table */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .8rem;
+      margin-top: .75rem;
+    }
+    .matrix-table th {
+      text-align: left;
+      font-family: var(--mono);
+      font-size: .72rem;
+      color: var(--text-dim);
+      padding: .4rem .75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .matrix-table td {
+      padding: .45rem .75rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(51,65,85,.5);
+      vertical-align: top;
+    }
+    .matrix-table td:first-child { font-family: var(--mono); color: var(--accent); font-size: .75rem; }
+
+    /* ── QUICKSTART ── */
+    .steps { display: flex; flex-direction: column; gap: 1rem; }
+    .step {
+      display: flex; gap: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.1rem 1.25rem;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(56,189,248,.1);
+      border: 1px solid rgba(56,189,248,.3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: .72rem;
+      color: var(--accent); font-weight: 700;
+    }
+    .step-body h4 { font-size: .9rem; font-weight: 600; margin-bottom: .35rem; }
+    .step-body p  { font-size: .8rem; color: var(--text-muted); margin-bottom: .6rem; }
+    .step-body pre { margin: 0; }
+
+    /* ── DATA FORMAT ── */
+    .format-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .8rem;
+    }
+    .format-table th {
+      text-align: left;
+      font-family: var(--mono);
+      font-size: .7rem;
+      color: var(--text-dim);
+      padding: .5rem .75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .format-table td {
+      padding: .5rem .75rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(51,65,85,.4);
+      vertical-align: middle;
+    }
+    .format-table td:first-child { font-family: var(--mono); color: var(--accent-green); font-size: .75rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 0;
+      text-align: center;
+      font-size: .8rem;
+      color: var(--text-dim);
+    }
+    footer a { color: var(--text-muted); }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ NAV ══ -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">industry-chain-<span>matcher</span></div>
+    <ul class="nav-links">
+      <li><a href="#how-it-works">原理</a></li>
+      <li><a href="#algorithm">算法</a></li>
+      <li><a href="#quickstart">快速开始</a></li>
+      <li><a href="#dataformat">数据格式</a></li>
+    </ul>
+    <a href="https://github.com/Leoi-JR/industry-chain-matcher" target="_blank" rel="noopener" class="nav-gh">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.744 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════ HERO ══ -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-tag">Matrix-based · Industry Chain Matching Engine</div>
+
+    <h1 class="hero-title">
+      Industry Chain<br/>
+      <span class="accent">Matcher</span>
+    </h1>
+    <p class="hero-subtitle">// 源文本 → 产业链环节 · 批量矩阵映射</p>
+
+    <p class="hero-desc">
+      将任意源文本文档，通过向量相似度与可配置的规则矩阵，批量精准映射到产业链图谱的具体环节。
+      支持百万级文档处理，所有匹配逻辑编码为矩阵运算，一次乘法得出全量结果，无需逐条循环。
+    </p>
+
+    <div class="badges">
+      <span class="badge blue">矩阵批量运算</span>
+      <span class="badge green">A/B 双组链路逻辑</span>
+      <span class="badge amber">"其他"排他兜底</span>
+      <span class="badge purple">LLM 阈值标定</span>
+      <span class="badge">GPU 可选加速</span>
+      <span class="badge">断点续跑</span>
+    </div>
+
+    <div class="hero-actions">
+      <a href="#quickstart" class="btn-primary">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        快速开始
+      </a>
+      <a href="https://github.com/Leoi-JR/industry-chain-matcher" target="_blank" rel="noopener" class="btn-ghost">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.341-3.369-1.341-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.744 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
+        GitHub
+      </a>
+    </div>
+
+    <!-- Feature Cards -->
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon blue">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="#38BDF8" stroke-width="1.5"/>
+            <rect x="10" y="2" width="6" height="6" rx="1.5" stroke="#38BDF8" stroke-width="1.5"/>
+            <rect x="2" y="10" width="6" height="6" rx="1.5" stroke="#38BDF8" stroke-width="1.5"/>
+            <rect x="10" y="10" width="6" height="6" rx="1.5" stroke="#38BDF8" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <h4>统一矩阵运算</h4>
+        <p>A/B组门控、排他兜底、L0级联筛选，全部预编码为配置矩阵。匹配时一次矩阵乘法得出 m×n 完整结果，无逐条循环，可扩展至百万级文档。</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon green">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 3L3 7v8h4v-4h4v4h4V7L9 3z" stroke="#34D399" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h4>双类型链路逻辑</h4>
+        <p>A 组（特定应用）需通过 L0 根节点相似度门控；B 组（通用赋能）直接匹配，两类链路共存于同一矩阵运算中，无需分批处理。</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon amber">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="6.5" stroke="#FBBF24" stroke-width="1.5"/>
+            <path d="M6 9l2 2 4-4" stroke="#FBBF24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h4>"其他"排他兜底</h4>
+        <p>排他归属矩阵（Exclusion Mapping Matrix）确保兜底节点仅在同级所有具体节点均未命中时才触发，支持 L3、L4 等多层级场景。</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon purple">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M4 9h10M9 4l5 5-5 5" stroke="#A78BFA" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h4>LLM 辅助阈值标定</h4>
+        <p>内置四步标定流水线：按相似度分箱采样 → LLM 判断 → 统计符合率 → 导出个性化阈值。也支持手动配置 CSV 跳过此步骤。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ HOW IT WORKS ══ -->
+<section id="how-it-works">
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2>两阶段执行架构</h2>
+
+    <!-- Pipeline SVG -->
+    <div class="pipeline-svg-wrap">
+      <svg viewBox="0 0 860 230" width="100%" style="min-width:640px; display:block;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arr" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M1,1 L6,3.5 L1,6" fill="none" stroke="#475569" stroke-width="1.2"/>
+          </marker>
+          <marker id="arr-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M1,1 L6,3.5 L1,6" fill="none" stroke="#38BDF8" stroke-width="1.2"/>
+          </marker>
+        </defs>
+
+        <!-- Lane: Upstream -->
+        <rect x="8" y="8" width="844" height="62" rx="6" fill="#162032" stroke="#334155" stroke-width="1"/>
+        <text x="16" y="24" font-family="JetBrains Mono,monospace" font-size="8" fill="#475569" letter-spacing=".08em">UPSTREAM PIPELINE</text>
+
+        <!-- Lane: Matching -->
+        <rect x="8" y="80" width="844" height="62" rx="6" fill="#162032" stroke="#334155" stroke-width="1"/>
+        <text x="16" y="96" font-family="JetBrains Mono,monospace" font-size="8" fill="#475569" letter-spacing=".08em">MATCHING PIPELINE</text>
+
+        <!-- Lane: Source -->
+        <rect x="8" y="152" width="844" height="62" rx="6" fill="#162032" stroke="#334155" stroke-width="1"/>
+        <text x="16" y="168" font-family="JetBrains Mono,monospace" font-size="8" fill="#475569" letter-spacing=".08em">SOURCE PIPELINE</text>
+
+        <!-- ── UPSTREAM boxes ── -->
+        <!-- LLM Define -->
+        <rect x="40" y="28" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="90" y="43" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#A78BFA">LLM 定义链路</text>
+        <text x="90" y="54" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">llm_define_chains</text>
+
+        <line x1="140" y1="44" x2="160" y2="44" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+
+        <!-- Parse -->
+        <rect x="160" y="28" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="210" y="43" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#A78BFA">解析格式化</text>
+        <text x="210" y="54" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">parse_chain_defs</text>
+
+        <line x1="260" y1="44" x2="280" y2="44" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+
+        <!-- Embed Chain -->
+        <rect x="280" y="28" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="330" y="43" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#A78BFA">链路向量化</text>
+        <text x="330" y="54" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">embed_chain_defs</text>
+
+        <!-- Arrow down: chain embed → storage -->
+        <line x1="330" y1="60" x2="330" y2="74" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+        <!-- Type CSV label -->
+        <rect x="420" y="28" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="470" y="43" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#64748B">chain_type.csv</text>
+        <text x="470" y="54" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">A/B 类型标注</text>
+        <line x1="470" y1="60" x2="470" y2="74" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+        <!-- Threshold label -->
+        <rect x="560" y="28" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="610" y="43" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#64748B">threshold*.csv</text>
+        <text x="610" y="54" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">LLM 标定 / 手动</text>
+        <line x1="610" y1="60" x2="610" y2="74" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+        <!-- ── MATCHING boxes ── -->
+        <!-- prepare -->
+        <rect x="40" y="100" width="110" height="32" rx="5" fill="#1E293B" stroke="#38BDF8" stroke-width="1.2"/>
+        <text x="95" y="115" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#38BDF8">prepare_chain_config</text>
+        <text x="95" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">构建配置矩阵</text>
+
+        <line x1="150" y1="116" x2="180" y2="116" stroke="#38BDF8" stroke-width="1.2" marker-end="url(#arr-b)"/>
+
+        <!-- run similarity -->
+        <rect x="180" y="100" width="110" height="32" rx="5" fill="#1E293B" stroke="#38BDF8" stroke-width="1.2"/>
+        <text x="235" y="115" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#38BDF8">run_similarity</text>
+        <text x="235" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">矩阵相似度计算</text>
+
+        <line x1="290" y1="116" x2="320" y2="116" stroke="#38BDF8" stroke-width="1.2" marker-end="url(#arr-b)"/>
+
+        <!-- apply matching -->
+        <rect x="320" y="100" width="110" height="32" rx="5" fill="#1E293B" stroke="#38BDF8" stroke-width="1.2"/>
+        <text x="375" y="115" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#38BDF8">apply_matching</text>
+        <text x="375" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">阈值 + 逻辑掩码</text>
+
+        <line x1="430" y1="116" x2="460" y2="116" stroke="#38BDF8" stroke-width="1.2" marker-end="url(#arr-b)"/>
+
+        <!-- export -->
+        <rect x="460" y="100" width="110" height="32" rx="5" fill="#1E293B" stroke="#38BDF8" stroke-width="1.2"/>
+        <text x="515" y="115" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#38BDF8">export_results</text>
+        <text x="515" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">导出 Parquet</text>
+
+        <line x1="570" y1="116" x2="600" y2="116" stroke="#38BDF8" stroke-width="1.2" marker-end="url(#arr-b)"/>
+
+        <!-- result -->
+        <rect x="600" y="100" width="110" height="32" rx="5" fill="rgba(52,211,153,.08)" stroke="#34D399" stroke-width="1.2"/>
+        <text x="655" y="115" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#34D399">final_results</text>
+        <text x="655" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#34D399">.parquet</text>
+
+        <!-- dashed inputs into prepare -->
+        <line x1="330" y1="74" x2="95" y2="100" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+        <line x1="470" y1="74" x2="95" y2="100" stroke="#475569" stroke-width="1" stroke-dasharray="3,2"/>
+        <line x1="610" y1="74" x2="375" y2="100" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+        <!-- ── SOURCE boxes ── -->
+        <!-- raw source -->
+        <rect x="40" y="172" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="90" y="187" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#94A3B8">原始源文本</text>
+        <text x="90" y="198" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">.parquet / .csv</text>
+
+        <line x1="140" y1="188" x2="160" y2="188" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+
+        <!-- preprocess -->
+        <rect x="160" y="172" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="210" y="187" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#94A3B8">预处理分批</text>
+        <text x="210" y="198" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">preprocess_source</text>
+
+        <line x1="260" y1="188" x2="280" y2="188" stroke="#475569" stroke-width="1" marker-end="url(#arr)"/>
+
+        <!-- embed source -->
+        <rect x="280" y="172" width="100" height="32" rx="5" fill="#1E293B" stroke="#334155" stroke-width="1.2"/>
+        <text x="330" y="187" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="8" fill="#94A3B8">源文本向量化</text>
+        <text x="330" y="198" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#475569">embed_source_texts</text>
+
+        <!-- dashed: source embed → run_similarity -->
+        <line x1="330" y1="172" x2="235" y2="132" stroke="#475569" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+
+        <!-- step numbers -->
+        <circle cx="95" cy="88" r="7" fill="#0F172A" stroke="#38BDF8" stroke-width="1"/>
+        <text x="95" y="91" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#38BDF8" font-weight="700">0</text>
+        <circle cx="235" cy="88" r="7" fill="#0F172A" stroke="#38BDF8" stroke-width="1"/>
+        <text x="235" y="91" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#38BDF8" font-weight="700">1</text>
+        <circle cx="375" cy="88" r="7" fill="#0F172A" stroke="#38BDF8" stroke-width="1"/>
+        <text x="375" y="91" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#38BDF8" font-weight="700">2</text>
+        <circle cx="515" cy="88" r="7" fill="#0F172A" stroke="#38BDF8" stroke-width="1"/>
+        <text x="515" y="91" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="7" fill="#38BDF8" font-weight="700">3</text>
+      </svg>
+    </div>
+
+    <!-- Three-column explanation -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem;">
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.25rem;">
+        <div class="section-label" style="margin-bottom:.4rem;">上游流水线</div>
+        <p style="font-size:.82rem; color:var(--text-muted); line-height:1.65;">
+          一次性运行：LLM 为每个产业链节点生成 embedding 友好的文字定义，向量化后保存。更换产业链时重新执行此阶段即可，匹配阶段无需变动。
+        </p>
+      </div>
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.1rem 1.25rem;">
+        <div class="section-label" style="margin-bottom:.4rem;">源文本流水线</div>
+        <p style="font-size:.82rem; color:var(--text-muted); line-height:1.65;">
+          支持任意文本类型（描述、摘要等）。预处理后分批向量化，输出 <code>source_part_*.npz</code>，可增量追加新批次。
+        </p>
+      </div>
+      <div style="background:var(--bg-card); border:1px solid rgba(56,189,248,.25); border-radius:var(--radius); padding:1.1rem 1.25rem;">
+        <div style="font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-green); margin-bottom:.4rem;">核心匹配流水线</div>
+        <p style="font-size:.82rem; color:var(--text-muted); line-height:1.65;">
+          步骤 0→3：构建配置矩阵 → 批量相似度计算 → 阈值+掩码匹配 → 导出 Parquet。无 GPU 要求，全程矩阵运算，支持断点续跑。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ ALGORITHM ══ -->
+<section id="algorithm">
+  <div class="container">
+    <div class="section-label">Algorithm</div>
+    <h2>统一矩阵计算逻辑</h2>
+
+    <p style="font-size:.9rem; color:var(--text-muted); max-width:680px; margin-bottom:2.5rem; line-height:1.75;">
+      所有匹配判断均编码为矩阵运算，核心思路是将"业务规则"提前预计算为配置矩阵，
+      匹配时只需三次矩阵乘法 + 逐元素掩码合并，即可得到 <code>m × n</code> 的完整匹配结果。
+    </p>
+
+    <!-- 相似度公式 -->
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.4rem 1.6rem; margin-bottom:1.5rem; overflow-x:auto;">
+      <div class="section-label" style="margin-bottom:.75rem;">Step 1 · 三组相似度矩阵</div>
+      <pre style="border:none; background:transparent; padding:0; font-size:.83rem; color:var(--text-muted);">Sim_L0           = L0_Embed           @ D.T   →  <span style="color:#38BDF8">(1,       n)</span>   L0 根节点 vs 全部源文本
+Sim_Spec         = Spec_Embeds        @ D.T   →  <span style="color:#34D399">(m_spec,  n)</span>   具体链路 vs 全部源文本
+Sim_Other_Parent = OtherParent_Embeds @ D.T   →  <span style="color:#FBBF24">(m_other, n)</span>   "其他"父级 vs 全部源文本</pre>
+    </div>
+
+    <!-- 匹配条件表 -->
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.4rem 1.6rem; margin-bottom:1.5rem; overflow-x:auto;">
+      <div class="section-label" style="margin-bottom:.75rem;">Step 2–5 · 掩码合并与匹配条件</div>
+      <table class="matrix-table">
+        <thead>
+          <tr>
+            <th>链路类型</th>
+            <th>匹配条件</th>
+            <th>涉及矩阵</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill blue">A 组具体链路</span></td>
+            <td style="color:var(--text);">Sim_Spec[j,i] &gt; Threshold_Spec[j]
+              <strong style="color:var(--accent);">且</strong>
+              Sim_L0[i] &gt; T_L0</td>
+            <td>Spec_Mask ∧ Cascade_Mask</td>
+          </tr>
+          <tr>
+            <td><span class="pill green">B 组具体链路</span></td>
+            <td style="color:var(--text);">Sim_Spec[j,i] &gt; Threshold_Spec[j]</td>
+            <td>Spec_Mask（L0 门控自动豁免）</td>
+          </tr>
+          <tr>
+            <td><span class="pill amber">"其他"兜底节点</span></td>
+            <td style="color:var(--text);">Sim_Other_Parent[k,i] &gt; Threshold_Other[k]
+              <strong style="color:var(--accent);">且</strong> 同级具体节点均未命中
+              <strong style="color:var(--accent);">且</strong> 通过类型门控</td>
+            <td>Other_Mask ∧ No_Sibling_Match ∧ Cascade_Mask</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 三张亮点卡 -->
+    <div class="algo-grid">
+      <div class="algo-card">
+        <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem;">
+          <span class="pill blue" style="font-size:.7rem;">Chain_Type_Vector</span>
+        </div>
+        <h4>A/B 双组门控</h4>
+        <p>
+          每条链路预标注类型（A=特定应用 / B=通用赋能）。A 组链路需要 L0 相似度超过全局阈值 T_L0 才能命中，
+          B 组直接匹配。两组共享同一套相似度矩阵，<code>Chain_Type_Vector</code> 控制 L0 门控是否生效。
+        </p>
+      </div>
+      <div class="algo-card">
+        <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem;">
+          <span class="pill amber" style="font-size:.7rem;">Exclusion_Mapping_Matrix</span>
+        </div>
+        <h4>"其他"排他逻辑</h4>
+        <p>
+          预计算一个稀疏矩阵 <code>E (m_other × m_spec)</code>，记录每个"其他"节点需要排他的具体兄弟节点。
+          匹配时 <code>No_Sibling_Match = (E @ Spec_Mask_bool == 0)</code>，
+          一次矩阵乘法即可判断是否有兄弟节点命中。
+        </p>
+      </div>
+      <div class="algo-card">
+        <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem;">
+          <span class="pill purple" style="font-size:.7rem;">LLM Calibration</span>
+        </div>
+        <h4>阈值标定流水线</h4>
+        <p>
+          相似度连续值需要转换为二元匹配决策。内置四步流水线：
+          按分箱采样 → LLM 逐条判断 → 统计各箱符合率 → 取目标符合率对应分位数作为阈值，
+          每条链路独立确定，也可完全手动配置。
+        </p>
+      </div>
+      <div class="algo-card">
+        <div style="display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem;">
+          <span class="pill green" style="font-size:.7rem;">Batch Processing</span>
+        </div>
+        <h4>批量断点续跑</h4>
+        <p>
+          源文本按文件分批处理，每批次的相似度矩阵独立保存。
+          中断后从上次完成的批次继续，不重复计算已完成的批次。
+          支持可选 GPU 加速（CuPy），CPU 环境同样可运行。
+        </p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ QUICKSTART ══ -->
+<section id="quickstart">
+  <div class="container">
+    <div class="section-label">Quick Start</div>
+    <h2>快速开始</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h4>安装依赖</h4>
+          <pre>pip install -r requirements.txt</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h4>生成示例数据</h4>
+          <p>生成一条包含 13 个节点的虚构产业链和 200 条模拟文档，以及配套阈值文件。</p>
+          <pre>python sample_data/generate_sample_data.py</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h4>运行核心匹配流水线</h4>
+          <pre>python chain_matching_sop/prepare_chain_config.py   # 步骤 0：构建配置矩阵
+python chain_matching_sop/run_similarity.py           # 步骤 1：计算相似度
+python chain_matching_sop/apply_matching.py           # 步骤 2：应用匹配逻辑
+python chain_matching_sop/export_results.py           # 步骤 3：导出结果</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h4>查看结果</h4>
+          <pre>import pandas as pd
+df = pd.read_parquet("chain_matching_sop/results/final_matching_results.parquet")
+print(df.columns.tolist())
+# ['chain_id', 'chain_name', 'info_id', 'similarity', 'source_text']</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- 环境变量 -->
+    <div style="margin-top:2rem; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem 1.4rem;">
+      <h3 style="margin-bottom:.75rem; font-size:.95rem;">环境变量（<code>.env</code>）</h3>
+      <table class="format-table">
+        <thead><tr><th>变量</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>LLM_API_URL</td><td>OpenAI 兼容的 LLM 接口地址（阈值标定用）</td></tr>
+          <tr><td>LLM_API_KEY</td><td>API 鉴权密钥</td></tr>
+          <tr><td>LLM_MODEL_NAME</td><td>LLM 判断所用的模型名称</td></tr>
+          <tr><td>EMBEDDING_MODEL_PATH</td><td>本地 embedding 模型路径（上游流水线用）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ DATA FORMAT ══ -->
+<section id="dataformat">
+  <div class="container">
+    <div class="section-label">Data Format</div>
+    <h2>输入 / 输出数据格式</h2>
+
+    <h3 style="margin-bottom:1rem; color:var(--text-muted); font-size:.95rem; font-weight:500;">输入文件</h3>
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem; overflow-x:auto; margin-bottom:1.5rem;">
+      <table class="format-table">
+        <thead>
+          <tr><th>文件</th><th>必需字段</th><th>形状</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>chain_embeddings.npz</td>
+            <td><code>chain_names</code>（字符串数组）、<code>embeddings</code>（float32）</td>
+            <td style="font-family:var(--mono); font-size:.75rem; color:var(--text-dim);">(m, d)</td>
+          </tr>
+          <tr>
+            <td>l0_embedding.npz</td>
+            <td><code>chain_names</code>（单元素数组）、<code>embeddings</code>（float32）</td>
+            <td style="font-family:var(--mono); font-size:.75rem; color:var(--text-dim);">(1, d)</td>
+          </tr>
+          <tr>
+            <td>chain_type_classification.csv</td>
+            <td><code>chain_name</code>、<code>type</code>（取值 A 或 B）</td>
+            <td style="font-family:var(--mono); font-size:.75rem; color:var(--text-dim);">—</td>
+          </tr>
+          <tr>
+            <td>source_part_*.npz</td>
+            <td><code>ids</code>（整数数组）、<code>embeddings</code>（float32）</td>
+            <td style="font-family:var(--mono); font-size:.75rem; color:var(--text-dim);">(n_batch, d)</td>
+          </tr>
+          <tr>
+            <td>source_part_*.parquet</td>
+            <td><code>id</code>（整数）、<code>source_text</code>（字符串）</td>
+            <td style="font-family:var(--mono); font-size:.75rem; color:var(--text-dim);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-bottom:1rem; color:var(--text-muted); font-size:.95rem; font-weight:500;">输出文件</h3>
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem; overflow-x:auto; margin-bottom:1.5rem;">
+      <p style="font-size:.8rem; color:var(--text-dim); font-family:var(--mono); margin-bottom:.75rem;">chain_matching_sop/results/final_matching_results.parquet</p>
+      <table class="format-table">
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>chain_id</td><td style="color:var(--text-dim); font-size:.75rem;">int</td><td>产业链节点索引</td></tr>
+          <tr><td>chain_name</td><td style="color:var(--text-dim); font-size:.75rem;">str</td><td>产业链节点全路径名称</td></tr>
+          <tr><td>info_id</td><td style="color:var(--text-dim); font-size:.75rem;">int</td><td>源文本 ID</td></tr>
+          <tr><td>similarity</td><td style="color:var(--text-dim); font-size:.75rem;">float32</td><td>余弦相似度得分</td></tr>
+          <tr><td>source_text</td><td style="color:var(--text-dim); font-size:.75rem;">str</td><td>源文本内容</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 文件命名约定 -->
+    <div style="background:rgba(56,189,248,.05); border:1px solid rgba(56,189,248,.2); border-radius:var(--radius); padding:1rem 1.25rem; font-size:.82rem; color:var(--text-muted); line-height:1.7;">
+      <strong style="color:var(--accent);">文件命名约定</strong>：源文本 embedding 文件须以 <code>source_part_</code> 为前缀
+      （如 <code>source_part_1.parquet</code> → <code>source_part_1.npz</code>），
+      与 <code>data_config.py</code> 中的 <code>SOURCE_EMBEDDINGS_PATTERN</code> 保持一致。
+      如需自定义前缀，同步修改该配置项即可。
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ FOOTER ══ -->
+<footer>
+  <div class="container">
+    <p style="margin-bottom:.4rem;">
+      <a href="https://github.com/Leoi-JR/industry-chain-matcher" target="_blank" rel="noopener">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="README.md">README</a>
+    </p>
+    <p>Industry Chain Matcher — MIT License</p>
+  </div>
+</footer>
+
+</body>
+</html>
